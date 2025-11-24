@@ -66,7 +66,7 @@ This application implements a **REST API for user management** with the followin
 
 1. **Clone the repository**
    ```bash
-   git clone <git@github.com:davydenkov/keyfory-python-user-manage.git>
+   git clone git@github.com:davydenkov/keyfory-python-user-manage.git
    cd keyfory-python-user-manage
    ```
 
