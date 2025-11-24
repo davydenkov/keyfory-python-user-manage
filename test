@@ -204,3 +204,4 @@ faststream = { extras = ["cli"], version = "^0.5.34" }
    litestar database upgrade
 4. Время, затраченное на выполнение:
    [указать время]
+ 
