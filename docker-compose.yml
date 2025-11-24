@@ -1,0 +1,115 @@
+# ========================================================================
+# Docker Compose Configuration for User Management API
+# ========================================================================
+#
+# This configuration sets up the complete infrastructure for the User
+# Management REST API including PostgreSQL database and RabbitMQ message
+# broker. All services are configured for development with persistent data
+# volumes and health checks.
+#
+# Usage:
+#   docker-compose up -d          # Start all services in background
+#   docker-compose down           # Stop all services
+#   docker-compose logs           # View service logs
+#   docker-compose ps             # Check service status
+#
+# Services:
+#   - postgres: Database server (port 5432)
+#   - rabbitmq: Message broker (ports 5672, 15672)
+#
+# ========================================================================
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database Service
+  # Provides persistent data storage for user management
+  postgres:
+    image: postgres:15
+    container_name: user-management-postgres
+
+    # Database configuration
+    environment:
+      POSTGRES_DB: user_management        # Database name
+      POSTGRES_USER: user                 # Database user
+      POSTGRES_PASSWORD: password         # Database password (change in production)
+
+    # Network configuration
+    ports:
+      - "5432:5432"                       # Expose PostgreSQL port
+
+    # Data persistence
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  # Persistent database storage
+
+    # Health monitoring
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d user_management"]
+      interval: 10s                       # Check every 10 seconds
+      timeout: 5s                         # Timeout after 5 seconds
+      retries: 5                          # Retry 5 times before marking unhealthy
+      start_period: 10s                   # Wait 10s before first check
+
+    # Development optimizations
+    restart: unless-stopped               # Auto-restart unless manually stopped
+
+  # RabbitMQ Message Broker Service
+  # Provides event-driven messaging for user lifecycle events
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: user-management-rabbitmq
+
+    # Broker configuration
+    environment:
+      RABBITMQ_DEFAULT_USER: guest         # Default admin user
+      RABBITMQ_DEFAULT_PASS: guest         # Default admin password (change in production)
+
+    # Network configuration
+    ports:
+      - "5672:5672"                       # AMQP protocol port
+      - "15672:15672"                     # Management UI port
+
+    # Data persistence
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq    # Persistent message storage
+
+    # Health monitoring
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping   # Check broker connectivity
+      interval: 10s                       # Check every 10 seconds
+      timeout: 5s                         # Timeout after 5 seconds
+      retries: 5                          # Retry 5 times before marking unhealthy
+      start_period: 30s                   # Wait 30s for broker startup
+
+    # Development optimizations
+    restart: unless-stopped               # Auto-restart unless manually stopped
+
+# Named volumes for data persistence
+# These volumes survive container restarts and recreation
+volumes:
+  postgres_data:                           # PostgreSQL data volume
+  rabbitmq_data:                           # RabbitMQ data volume
+
+# ========================================================================
+# Production Considerations:
+# ========================================================================
+#
+# 1. Security:
+#    - Change default passwords in environment variables
+#    - Use Docker secrets for sensitive data
+#    - Configure network isolation between services
+#
+# 2. Performance:
+#    - Adjust PostgreSQL memory settings based on host resources
+#    - Configure RabbitMQ cluster for high availability
+#    - Use external volumes for better I/O performance
+#
+# 3. Monitoring:
+#    - Add logging drivers for centralized log collection
+#    - Configure metrics collection (Prometheus, Grafana)
+#    - Set up alerts for service health
+#
+# 4. Backup:
+#    - Implement automated backup strategies for volumes
+#    - Configure point-in-time recovery for PostgreSQL
+# ========================================================================
