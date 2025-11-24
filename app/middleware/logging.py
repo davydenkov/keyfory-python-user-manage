@@ -12,7 +12,7 @@ The middleware uses structlog for structured JSON logging with context variables
 
 import time
 import uuid
-from typing import Any, Dict
+from typing import Any, Dict, override
 
 import structlog
 from litestar import Request, Response
@@ -82,6 +82,7 @@ class LoggingMiddleware(MiddlewareProtocol):
         """
         self.app = app
 
+    @override
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """
         Handle ASGI request with comprehensive logging.
@@ -171,6 +172,7 @@ class LoggingMiddleware(MiddlewareProtocol):
                 path=full_path,
                 status=response_status,
                 execution_time=f"{execution_time:.4f}s",
+                performance=f"{'fast' if execution_time < 0.1 else 'normal' if execution_time < 1.0 else 'slow'}",
             )
 
         except Exception as exc:

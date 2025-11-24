@@ -127,7 +127,7 @@ def create_test_user_data(
         }
 
 
-async def create_multiple_test_users(
+def create_multiple_test_users(
     client: TestClient,
     count: int,
     base_name: str = "TestUser"
@@ -153,7 +153,7 @@ async def create_multiple_test_users(
             index=i
         )
 
-        response = await client.post("/users/", json=user_data)
+        response = client.post("/users/", json=user_data)
         assert response.status_code == 201
         users.append(response.json())
 

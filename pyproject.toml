@@ -25,8 +25,8 @@ readme = "README.md"
 packages = [{include = "app"}]
 
 # Python Version Requirements
-# Requires Python 3.12 or higher for modern async features
-python = "^3.12"
+# Requires Python 3.12 or higher for modern async features and performance
+python = ">=3.12,<4.0"
 
 # License Information (optional but recommended)
 license = "MIT"
@@ -47,8 +47,11 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
     "Topic :: Software Development :: Libraries :: Python Modules",
+    "Framework :: AsyncIO",
+    "Framework :: FastAPI",  # Compatible with LiteStar
 ]
 
 # ========================================================================
@@ -61,6 +64,8 @@ python = "^3.12"
 
 # Configuration Management
 python-dotenv = "^1"                      # Environment variable loading
+pydantic = "^2.0"                         # Data validation and serialization
+pydantic-settings = "^2.0"                # Settings management
 
 # Web Framework - LiteStar (high-performance async framework)
 litestar = {extras = ["standard"], version = "^2"}  # Core framework with standard features

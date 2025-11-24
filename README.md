@@ -49,12 +49,191 @@ This application implements a **REST API for user management** with the followin
 - **Middleware Pattern**: Cross-cutting concerns (logging, tracing) handled centrally
 - **Async/Await**: Full asynchronous processing for high concurrency
 
+## Prerequisites
+
+- **Python 3.12+** - Required for modern async features and optimal performance
+- **Docker & Docker Compose** - For infrastructure (PostgreSQL, RabbitMQ)
+- **Git** - For version control
+
+### Required Python Packages
+
+The application requires these key packages:
+- `pydantic` - Data validation and serialization
+- `pydantic-settings` - Settings management
+- `litestar` - Web framework
+- `advanced-alchemy` - Enhanced SQLAlchemy async support
+- `asyncpg` - PostgreSQL async driver
+- `aio-pika` - RabbitMQ client
+
+**Automatic Installation**: Run `./setup.sh` to install all dependencies automatically.
+
+**Manual Installation**:
+```bash
+pip install pydantic pydantic-settings litestar[standard] sqlalchemy aio-pika
+```
+
+### Troubleshooting
+
+#### Import Errors
+
+**ModuleNotFoundError: No module named 'pydantic_settings'**
+```bash
+# Install missing packages
+pip install pydantic pydantic-settings
+
+# Or run the automated setup
+./setup.sh
+```
+
+**ModuleNotFoundError: No module named 'litestar'**
+```bash
+# Install web framework
+pip install litestar[standard]
+
+# Or run the automated setup
+./setup.sh
+```
+
+**ModuleNotFoundError: No module named 'litestar.config.openapi'**
+```bash
+# This usually means LiteStar is not installed or import paths have changed
+pip install litestar[standard]
+
+# If still failing, try reinstalling
+pip uninstall litestar -y && pip install litestar[standard]
+
+# Or run the automated setup
+./setup.sh
+```
+
+**ImportError: cannot import name 'SQLAlchemyAsyncConfig' from 'advanced_alchemy'**
+```bash
+# This usually means advanced-alchemy is not installed or API has changed
+pip install advanced-alchemy
+
+# If still failing, try reinstalling
+pip uninstall advanced-alchemy -y && pip install advanced-alchemy
+
+# Or run the automated setup
+./setup.sh
+```
+
+**ModuleNotFoundError: No module named 'asyncpg'**
+```bash
+# PostgreSQL async driver is required for database connections
+pip install asyncpg
+
+# Or run the automated setup
+./setup.sh
+```
+
+**TypeError: OpenAPIConfig.__init__() got an unexpected keyword argument 'license_info'**
+```bash
+# This usually means you're using a different version of LiteStar where parameter names have changed
+# The parameter should be 'license' instead of 'license_info'
+# The application will automatically fall back to basic OpenAPI config if this occurs
+
+# To fix permanently, ensure you have the correct LiteStar version:
+pip install litestar[standard]
+
+# Or run the automated setup
+./setup.sh
+```
+
+**ImproperlyConfiguredException: A status code 204, 304 or in the range below 200 does not support a response body**
+```bash
+# This occurs when DELETE operations try to return a response body with status codes that don't allow bodies
+# The fix is to change the status code to 200 (OK) for DELETE operations that return confirmation messages
+
+# Check that your DELETE route handlers use status_code=200 if they return response bodies
+@delete("/path", status_code=200)  # ✅ Allows response body
+async def delete_handler(self) -> dict:
+    return {"message": "Deleted successfully"}
+
+# Status codes 204, 304, and codes below 200 do not allow response bodies
+@delete("/path")  # ❌ Defaults to 204, no response body allowed
+async def delete_handler(self):
+    return {"message": "Deleted successfully"}
+```
+
+**InvalidAuthorizationSpecificationError: role "user_manager" does not exist**
+```bash
+# This PostgreSQL error occurs when the database user doesn't exist or services aren't running
+
+# Option 1: Quick fix script (recommended for existing databases)
+./fix-db-user.sh
+# This script creates the user_manager role in your existing database
+
+# Option 2: Use the automated setup (for fresh installations)
+./setup.sh
+# This automatically creates the PostgreSQL user and database
+
+# Option 3: Manual setup
+# 1. Start Docker services (required for database and message queue)
+docker-compose up -d
+
+# 2. Wait for services to be healthy
+docker-compose ps                    # Check service status
+docker-compose logs postgres        # Check PostgreSQL startup logs
+
+# 3. Create the database user manually
+docker-compose exec postgres psql -U postgres -c "
+    CREATE ROLE user_manager LOGIN PASSWORD 'password';
+    CREATE DATABASE user_management OWNER user_manager;
+    GRANT ALL PRIVILEGES ON DATABASE user_management TO user_manager;
+"
+
+# 4. Verify database connectivity
+docker-compose exec postgres psql -U user_manager -d user_management -c "SELECT version();"
+
+# Option 4: If issues persist, reset the database (WARNING: deletes all data)
+docker-compose down -v             # Remove containers and volumes
+docker-compose up -d               # Recreate fresh services
+
+# Default connection settings (from env-example.txt):
+# DATABASE_URL=postgresql+asyncpg://user_manager:password@localhost:5432/user_management
+```
+
+#### Database Connection Issues
+
+**Connection refused / No such file or directory**
+```bash
+# Start database services
+docker-compose up -d postgres
+
+# Wait for database to be ready
+docker-compose logs postgres
+```
+
+#### RabbitMQ Connection Issues
+
+**Connection refused**
+```bash
+# Start message queue services
+docker-compose up -d rabbitmq
+
+# Check RabbitMQ status
+docker-compose logs rabbitmq
+```
+
+#### Port Already in Use
+
+**Address already in use**
+```bash
+# Kill process using port 8000
+lsof -ti:8000 | xargs kill -9
+
+# Or use a different port
+PORT=8001 python run.py
+```
+
 ## Tech Stack
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
-| **Backend Framework** | Python 3.12, LiteStar 2.x | High-performance async web framework |
-| **Database** | PostgreSQL + Advanced SQLAlchemy | Robust data persistence with async support |
+| **Runtime** | Python 3.12+ | Modern async features and performance |
+| **Backend Framework** | LiteStar 2.x | High-performance async web framework |
+| **Database** | PostgreSQL 15 + Advanced SQLAlchemy | Robust data persistence with async support |
 | **Message Queue** | RabbitMQ + aio-pika + faststream | Event-driven architecture and decoupling |
 | **Logging** | structlog | Structured JSON logging with trace correlation |
 | **Serialization** | msgspec | Fast JSON/MessagePack serialization |
@@ -76,17 +255,19 @@ This application implements a **REST API for user management** with the followin
    chmod +x setup.sh
    ./setup.sh
    ```
+   This will automatically:
+   - ✅ Create Python virtual environment
+   - ✅ Install all dependencies
+   - ✅ Start Docker services (PostgreSQL + RabbitMQ)
+   - ✅ PostgreSQL auto-creates user and database via init script (with fallback)
+   - ✅ Configure development environment
 
-3. **Start infrastructure services**
-   ```bash
-   docker-compose up -d
-   ```
-
-4. **Run the application**
+3. **Run the application**
    ```bash
    source venv/bin/activate
    python run.py
    ```
+   **Note**: If you haven't run `./setup.sh` first, the application will automatically detect missing database users and set them up.
 
 5. **Access the application**
    - **API**: http://localhost:8000
@@ -108,7 +289,7 @@ If you prefer manual setup or the automated script doesn't work:
 
 3. **Create virtual environment**
    ```bash
-   python3.12 -m venv venv
+   python3 -m venv venv
    source venv/bin/activate
    ```
 

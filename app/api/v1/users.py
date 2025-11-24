@@ -242,7 +242,7 @@ class UserController(Controller):
             updated_at=user.updated_at,
         )
 
-    @delete("/{user_id:int}", summary="Delete user", description="Delete a user by their ID")
+    @delete("/{user_id:int}", summary="Delete user", description="Delete a user by their ID", status_code=200)
     async def delete_user(self, session: AsyncSession, user_id: int) -> dict:
         """
         Permanently delete a user by their unique identifier.

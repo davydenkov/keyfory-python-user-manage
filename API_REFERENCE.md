@@ -494,7 +494,7 @@ curl -X GET "http://localhost:8000/users/" \
 
 ```bash
 # Database
-DATABASE_URL=postgresql+asyncpg://user:secure_password@db:5432/user_management
+DATABASE_URL=postgresql+asyncpg://user_manager:secure_password@db:5432/user_management
 
 # Message Queue
 RABBITMQ_URL=amqp://user:secure_password@rabbitmq:5672/

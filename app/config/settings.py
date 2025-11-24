@@ -9,7 +9,19 @@ can be provided via environment variables or .env files.
 import os
 from typing import Optional
 
-from pydantic import BaseSettings, Field
+from pydantic import Field
+
+# Try to import BaseSettings from pydantic-settings (Pydantic v2)
+# Fall back to pydantic if pydantic-settings is not available
+try:
+    from pydantic_settings import BaseSettings
+except ImportError:
+    try:
+        from pydantic import BaseSettings
+    except ImportError:
+        raise ImportError(
+            "pydantic is required. Please install it with: pip install pydantic pydantic-settings"
+        )
 
 
 class Settings(BaseSettings):
@@ -22,7 +34,7 @@ class Settings(BaseSettings):
 
     # Database Configuration
     database_url: str = Field(
-        default="postgresql+asyncpg://user:password@localhost:5432/user_management",
+        default="postgresql+asyncpg://user_manager:password@localhost:5432/user_management",
         env="DATABASE_URL",
         description="PostgreSQL database connection URL with asyncpg driver"
     )

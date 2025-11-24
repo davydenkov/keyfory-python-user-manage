@@ -3,145 +3,255 @@ Pytest configuration and fixtures for User Management API tests.
 
 This module provides shared fixtures and configuration for all test modules,
 including database setup, test clients, and test data factories.
-
-The fixtures are designed to work with or without external dependencies by using
-mocks and fallbacks when the real dependencies are not available.
 """
 
 import asyncio
 import uuid
-from typing import AsyncGenerator, Dict, Any, Optional
-from unittest.mock import Mock, MagicMock
+from typing import Dict, Any
+from unittest.mock import AsyncMock
 
 import pytest
 
-# Try to import real dependencies, fall back to mocks if not available
+# Import dependencies
 try:
     from litestar.testing import TestClient
-    from app.database.config import engine, get_session
+    from litestar import Litestar
+    from litestar.config.cors import CORSConfig
     from app.database.models import Base
-    from app.main import app
-    from app.models import User
+    from app.api.v1.users import UserController
+    from app.middleware import LoggingMiddleware
+    from app.config import get_settings
+    
+    # Import database config components
+    from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine, async_sessionmaker, AsyncSession
+    from app.database.config import get_session
+    
     DEPENDENCIES_AVAILABLE = True
 except ImportError:
-    # Create mock classes when dependencies are not available
+    from unittest.mock import Mock
     TestClient = Mock
-    engine = Mock()
-    get_session = Mock(return_value=Mock())
     Base = Mock()
-    app = Mock()
-    User = Mock()
+    Litestar = Mock()
     DEPENDENCIES_AVAILABLE = False
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for the test session."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
+# Mock RabbitMQ consumer and producer for tests
+if DEPENDENCIES_AVAILABLE:
+    import app.rabbitmq.consumer as consumer_module
+    import app.rabbitmq.producer as producer_module
+    
+    # Mock RabbitMQ functions to avoid connection issues
+    consumer_module.start_consumer = AsyncMock(return_value=None)
+    consumer_module.stop_consumer = AsyncMock(return_value=None)
+    producer_module.publish_user_event = AsyncMock(return_value=None)
+
+
+# Global test engine - will be recreated per test
+_test_engine: AsyncEngine | None = None
+_test_async_session = None
+
+
+def _create_test_engine():
+    """Create a fresh database engine for tests."""
+    settings = get_settings()
+    
+    # Create engine with test-specific settings
+    engine = create_async_engine(
+        settings.database_url,
+        echo=False,  # Disable SQL logging in tests
+        pool_pre_ping=True,  # Verify connections before using
+        pool_size=5,
+        max_overflow=10,
+    )
+    return engine
 
 
 @pytest.fixture(scope="session", autouse=True)
-async def setup_database():
+def setup_database():
     """
-    Set up test database.
-
-    Creates all tables before running tests and drops them after all tests complete.
-    This ensures a clean database state for each test session.
-
-    Skips if dependencies are not available.
+    Set up test database tables once per session.
+    
+    Creates all tables before tests run.
     """
     if not DEPENDENCIES_AVAILABLE:
         pytest.skip("Database dependencies not available")
+    
+    # Create event loop for database setup
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        # Create temporary engine for setup
+        temp_engine = _create_test_engine()
+        
+        async def _setup():
+            try:
+                async with temp_engine.begin() as conn:
+                    await conn.run_sync(Base.metadata.create_all)
+            except Exception:
+                # Tables might already exist, that's okay
+                pass
+        
+        loop.run_until_complete(_setup())
+        yield
+        
+        # Cleanup
+        async def _teardown():
+            try:
+                async with temp_engine.begin() as conn:
+                    await conn.run_sync(Base.metadata.drop_all)
+            except Exception:
+                pass
+            await temp_engine.dispose()
+        
+        loop.run_until_complete(_teardown())
+    finally:
+        loop.close()
 
-    # Create all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
 
+@pytest.fixture(scope="function", autouse=True)
+def reset_database_engine():
+    """
+    Reset database engine for each test to avoid event loop issues.
+    
+    This ensures each test gets a fresh engine with the correct event loop.
+    """
+    if not DEPENDENCIES_AVAILABLE:
+        return
+    
+    global _test_engine, _test_async_session
+    
+    # Dispose old engine if it exists
+    if _test_engine:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(_test_engine.dispose())
+        except Exception:
+            pass
+        finally:
+            loop.close()
+    
+    # Create new engine - will use TestClient's event loop
+    _test_engine = None
+    _test_async_session = None
+    
     yield
+    
+    # Cleanup after test
+    if _test_engine:
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(_test_engine.dispose())
+            loop.close()
+        except Exception:
+            pass
 
-    # Clean up - drop all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+
+@pytest.fixture(scope="session")
+def test_app():
+    """Create a test app instance without lifespan handler."""
+    if not DEPENDENCIES_AVAILABLE:
+        pytest.skip("Dependencies not available")
+    
+    settings = get_settings()
+    cors_config = CORSConfig(allow_origins=["*"])
+    
+    # Create app without lifespan to avoid RabbitMQ connection issues
+    test_app_instance = Litestar(
+        route_handlers=[UserController],
+        middleware=[LoggingMiddleware],
+        cors_config=cors_config,
+        debug=settings.debug,
+    )
+    
+    return test_app_instance
 
 
 @pytest.fixture
-async def test_client() -> AsyncGenerator[TestClient, None]:
+def test_client(test_app):
     """
     Provide a test client for API testing.
-
-    This fixture creates a LiteStar TestClient that can be used to make
-    HTTP requests to the application in tests. Falls back to mock if
-    dependencies are not available.
-
-    Yields:
+    
+    Returns:
         TestClient: Configured test client for the application
     """
     if not DEPENDENCIES_AVAILABLE:
-        # Create a mock client that simulates HTTP responses
-        mock_client = Mock()
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.headers = {"X-Trace-Id": str(uuid.uuid4())}
-        mock_response.json.return_value = {"message": "Mock response"}
-        mock_client.get.return_value = mock_response
-        mock_client.post.return_value = mock_response
-        mock_client.put.return_value = mock_response
-        mock_client.delete.return_value = mock_response
-
-        # Mock context manager behavior
-        mock_client.__aenter__ = Mock(return_value=mock_client)
-        mock_client.__aexit__ = Mock(return_value=None)
-
-        yield mock_client
-        return
-
-    async with TestClient(app) as client:
-        yield client
-
-
-@pytest.fixture
-async def db_session():
-    """
-    Provide a database session for tests requiring direct database access.
-
-    This fixture provides a database session that can be used in tests that
-    need to interact directly with the database. Falls back to mock if
-    dependencies are not available.
-
-    Yields:
-        AsyncSession: Database session for the test
-    """
-    if not DEPENDENCIES_AVAILABLE:
-        mock_session = Mock()
-        mock_session.add = Mock()
-        mock_session.commit = Mock()
-        mock_session.refresh = Mock()
-        mock_session.delete = Mock()
-
-        async def async_iter():
-            yield mock_session
-
-        for session in async_iter():
+        pytest.skip("TestClient not available")
+    
+    # Patch the database engine to use a fresh one for this test
+    # This ensures it uses the same event loop as TestClient
+    import app.database.config as db_config
+    
+    # Create engine with current event loop
+    test_engine = _create_test_engine()
+    test_async_session = async_sessionmaker(
+        bind=test_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    
+    # Temporarily replace the engine and session
+    original_engine = db_config.engine
+    original_async_session = db_config.async_session
+    original_get_session = db_config.get_session
+    
+    db_config.engine = test_engine
+    db_config.async_session = test_async_session
+    
+    # Create new get_session function
+    async def test_get_session():
+        async with test_async_session() as session:
             yield session
-        return
+    
+    db_config.get_session = test_get_session
+    
+    try:
+        with TestClient(app=test_app) as client:
+            yield client
+    finally:
+        # Restore original
+        db_config.engine = original_engine
+        db_config.async_session = original_async_session
+        db_config.get_session = original_get_session
+        
+        # Dispose test engine
+        try:
+            loop = asyncio.get_event_loop()
+            if not loop.is_closed():
+                loop.run_until_complete(test_engine.dispose())
+        except Exception:
+            pass
 
-    async for session in get_session():
-        yield session
+
+@pytest.fixture(autouse=True)
+def cleanup_database(test_client):
+    """Clean up database between tests."""
+    yield
+    # After each test, truncate tables
+    if DEPENDENCIES_AVAILABLE:
+        try:
+            import app.database.config as db_config
+            loop = asyncio.get_event_loop()
+            if not loop.is_closed():
+                async def _cleanup():
+                    try:
+                        async with db_config.engine.begin() as conn:
+                            await conn.run_sync(lambda sync_conn: sync_conn.execute(
+                                "TRUNCATE TABLE \"user\" RESTART IDENTITY CASCADE"
+                            ))
+                    except Exception:
+                        pass
+                
+                loop.run_until_complete(_cleanup())
+        except Exception:
+            pass
 
 
 @pytest.fixture
-async def test_user_data() -> Dict[str, Any]:
-    """
-    Provide sample user data for testing.
-
-    Returns a dictionary with valid user creation data that can be used
-    across multiple tests.
-
-    Returns:
-        Dict[str, Any]: Sample user data
-    """
+def test_user_data() -> Dict[str, Any]:
+    """Provide sample user data for testing."""
     return {
         "name": "Test",
         "surname": "User",
@@ -150,39 +260,16 @@ async def test_user_data() -> Dict[str, Any]:
 
 
 @pytest.fixture
-async def created_user(test_client: TestClient, test_user_data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Create and return a test user.
-
-    This fixture creates a user in the database and returns the user data,
-    which can be used by tests that require an existing user.
-
-    Args:
-        test_client: Test client fixture
-        test_user_data: User data fixture
-
-    Returns:
-        Dict[str, Any]: Created user data including ID and timestamps
-    """
-    response = await test_client.post("/users/", json=test_user_data)
+def created_user(test_client: TestClient, test_user_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Create and return a test user."""
+    response = test_client.post("/users/", json=test_user_data)
     assert response.status_code == 201
     return response.json()
 
 
 @pytest.fixture
-async def multiple_users(test_client: TestClient) -> list:
-    """
-    Create multiple test users for pagination and bulk operation testing.
-
-    This fixture creates several users and returns their data for tests
-    that need to work with multiple users.
-
-    Args:
-        test_client: Test client fixture
-
-    Returns:
-        list: List of created user data dictionaries
-    """
+def multiple_users(test_client: TestClient) -> list:
+    """Create multiple test users for pagination testing."""
     users_data = [
         {"name": "Alice", "surname": "Johnson", "password": "pass1"},
         {"name": "Bob", "surname": "Smith", "password": "pass2"},
@@ -190,89 +277,29 @@ async def multiple_users(test_client: TestClient) -> list:
         {"name": "Diana", "surname": "Wilson", "password": "pass4"},
         {"name": "Eve", "surname": "Davis", "password": "pass5"},
     ]
-
+    
     created_users = []
     for user_data in users_data:
-        response = await test_client.post("/users/", json=user_data)
+        response = test_client.post("/users/", json=user_data)
         assert response.status_code == 201
         created_users.append(response.json())
-
+    
     return created_users
 
 
 @pytest.fixture
 def trace_id_header() -> str:
-    """
-    Provide a test trace ID for request tracing tests.
-
-    Returns:
-        str: A valid UUID4 trace ID
-    """
+    """Provide a test trace ID."""
     return str(uuid.uuid4())
 
 
-@pytest.fixture
-async def authenticated_client(test_client: TestClient) -> TestClient:
-    """
-    Provide a test client with authentication headers.
-
-    This fixture can be extended when authentication is implemented.
-    For now, it returns the regular test client.
-
-    Args:
-        test_client: Base test client fixture
-
-    Returns:
-        TestClient: Test client with authentication (when implemented)
-    """
-    # TODO: Add authentication when JWT/auth is implemented
-    return test_client
-
-
-# Custom pytest markers for test categorization
+# Custom pytest markers
 def pytest_configure(config):
     """Configure custom pytest markers."""
-    config.addinivalue_line(
-        "markers", "unit: mark test as a unit test"
-    )
-    config.addinivalue_line(
-        "markers", "integration: mark test as an integration test"
-    )
-    config.addinivalue_line(
-        "markers", "api: mark test as an API endpoint test"
-    )
-    config.addinivalue_line(
-        "markers", "slow: mark test as slow running"
-    )
-    config.addinivalue_line(
-        "markers", "rabbitmq: mark test as requiring RabbitMQ"
-    )
-    config.addinivalue_line(
-        "markers", "mock: mark test as using mocked dependencies"
-    )
-
-
-@pytest.fixture(autouse=True)
-def skip_if_dependencies_unavailable(request):
-    """
-    Skip tests that require unavailable dependencies.
-
-    This fixture automatically skips tests marked with certain markers
-    when the required dependencies are not available.
-    """
-    if not DEPENDENCIES_AVAILABLE:
-        # Skip tests that require real dependencies
-        markers_requiring_deps = ["integration", "api"]
-        for marker in markers_requiring_deps:
-            if marker in request.keywords:
-                pytest.skip(f"Test requires {marker} dependencies which are not available")
-
-
-# Global test configuration
-@pytest.fixture(scope="session")
-def test_config():
-    """Provide test configuration."""
-    return {
-        "dependencies_available": DEPENDENCIES_AVAILABLE,
-        "mock_mode": not DEPENDENCIES_AVAILABLE
-    }
+    config.addinivalue_line("markers", "unit: mark test as a unit test")
+    config.addinivalue_line("markers", "integration: mark test as an integration test")
+    config.addinivalue_line("markers", "api: mark test as an API endpoint test")
+    config.addinivalue_line("markers", "slow: mark test as slow running")
+    config.addinivalue_line("markers", "rabbitmq: mark test as requiring RabbitMQ")
+    config.addinivalue_line("markers", "database: mark test as requiring database")
+    config.addinivalue_line("markers", "mock: mark test as using mocks")

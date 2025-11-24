@@ -14,8 +14,13 @@
 #   docker-compose ps             # Check service status
 #
 # Services:
-#   - postgres: Database server (port 5432)
+#   - postgres: Database server (port 5432) with automatic user/database initialization
 #   - rabbitmq: Message broker (ports 5672, 15672)
+#
+# Database Initialization:
+#   PostgreSQL automatically creates the user_management database and user
+#   via the init-db.sql script when the container starts for the first time.
+#   The script includes robust user creation logic as a fallback.
 #
 # ========================================================================
 
@@ -31,7 +36,7 @@ services:
     # Database configuration
     environment:
       POSTGRES_DB: user_management        # Database name
-      POSTGRES_USER: user                 # Database user
+      POSTGRES_USER: user_manager                 # Database user
       POSTGRES_PASSWORD: password         # Database password (change in production)
 
     # Network configuration
@@ -41,10 +46,11 @@ services:
     # Data persistence
     volumes:
       - postgres_data:/var/lib/postgresql/data  # Persistent database storage
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql  # Database initialization script
 
     # Health monitoring
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d user_management"]
+      test: ["CMD-SHELL", "pg_isready -U user_manager -d user_management"]
       interval: 10s                       # Check every 10 seconds
       timeout: 5s                         # Timeout after 5 seconds
       retries: 5                          # Retry 5 times before marking unhealthy

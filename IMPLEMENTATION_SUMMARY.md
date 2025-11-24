@@ -162,7 +162,7 @@ curl -X PUT "http://localhost:8000/users/1" \
 
 ### Environment Variables
 ```bash
-DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/user_management
+DATABASE_URL=postgresql+asyncpg://user_manager:password@localhost:5432/user_management
 RABBITMQ_URL=amqp://guest:guest@localhost:5672/
 APP_NAME=keyfory-python-user-manage
 DEBUG=true

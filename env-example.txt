@@ -1,0 +1,131 @@
+# ========================================================================
+# User Management API - Environment Configuration
+# ========================================================================
+#
+# This file contains all configurable environment variables for the
+# User Management API. Copy this file to .env and modify the values
+# as needed for your environment.
+#
+# IMPORTANT: Never commit the .env file to version control!
+# ========================================================================
+
+# ========================================================================
+# DATABASE CONFIGURATION
+# ========================================================================
+# PostgreSQL database connection URL with asyncpg driver
+# Format: postgresql+asyncpg://username:password@host:port/database
+DATABASE_URL=postgresql+asyncpg://user_manager:password@localhost:5432/user_management
+
+# ========================================================================
+# RABBITMQ CONFIGURATION
+# ========================================================================
+# RabbitMQ AMQP connection URL for message queue
+# Format: amqp://username:password@host:port/vhost
+RABBITMQ_URL=amqp://guest:guest@localhost:5672/
+
+# ========================================================================
+# APPLICATION CONFIGURATION
+# ========================================================================
+# Application name for identification and documentation
+APP_NAME=keyfory-python-user-manage
+
+# Application version for API documentation
+APP_VERSION=0.1.0
+
+# Enable debug mode for development (set to false in production)
+DEBUG=true
+
+# Server host binding address (0.0.0.0 for all interfaces)
+HOST=0.0.0.0
+
+# Server port for HTTP requests
+PORT=8000
+
+# ========================================================================
+# LOGGING CONFIGURATION
+# ========================================================================
+# Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+LOG_LEVEL=INFO
+
+# ========================================================================
+# PRODUCTION ENVIRONMENT VARIABLES
+# ========================================================================
+# Uncomment and configure these for production deployment:
+
+# Security - Generate strong secrets (256-bit recommended)
+# SECRET_KEY=your-256-bit-secret-key-here
+# JWT_SECRET_KEY=your-jwt-secret-key-here
+
+# Database - Production PostgreSQL
+# DATABASE_URL=postgresql+asyncpg://prod_user:secure_password@db.prod.company.com:5432/user_management_prod
+
+# Message Queue - Production RabbitMQ
+# RABBITMQ_URL=amqp://prod_user:secure_password@rabbitmq.prod.company.com:5672/user_management
+
+# Server - Production settings
+# DEBUG=false
+# HOST=0.0.0.0
+# PORT=8000
+# LOG_LEVEL=WARNING
+
+# ========================================================================
+# DEVELOPMENT ENVIRONMENT SETUP
+# ========================================================================
+#
+# For local development with Docker Compose:
+#
+# 1. Start infrastructure: docker-compose up -d
+# 2. Copy this file: cp env-example.txt .env
+# 3. The default values above should work for local development
+#
+# For production:
+#
+# 1. Set DEBUG=false
+# 2. Configure secure DATABASE_URL and RABBITMQ_URL
+# 3. Generate and set SECRET_KEY and JWT_SECRET_KEY
+# 4. Adjust HOST and PORT as needed
+# 5. Set LOG_LEVEL=WARNING or ERROR for production
+#
+# ========================================================================
+
+# ========================================================================
+# OPTIONAL ENVIRONMENT VARIABLES
+# ========================================================================
+# These are optional and use sensible defaults if not set:
+
+# Redis URL (optional, for future caching features)
+# REDIS_URL=redis://localhost:6379/0
+
+# Request timeout settings (in seconds)
+# REQUEST_TIMEOUT=30.0
+# CONNECTION_TIMEOUT=10.0
+
+# Database connection pool settings
+# DB_POOL_SIZE=10
+# DB_MAX_OVERFLOW=20
+# DB_POOL_TIMEOUT=30
+
+# ========================================================================
+# SECURITY NOTES
+# ========================================================================
+#
+# 1. Database Credentials:
+#    - Use strong, unique passwords
+#    - Consider using IAM/database authentication in cloud environments
+#    - Rotate credentials regularly
+#
+# 2. RabbitMQ Credentials:
+#    - Change from default guest/guest in production
+#    - Use separate virtual hosts for different environments
+#
+# 3. Secret Keys:
+#    - Generate cryptographically secure random keys
+#    - Use different keys for different environments
+#    - Store securely (consider using secret management services)
+#
+# 4. Network Security:
+#    - Restrict database and RabbitMQ access to application servers only
+#    - Use SSL/TLS for all connections in production
+#    - Consider using VPC/security groups for network isolation
+#
+# ========================================================================

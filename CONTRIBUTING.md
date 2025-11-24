@@ -38,7 +38,7 @@ This project follows a code of conduct to ensure a welcoming environment for all
    ./setup.sh
 
    # Or manual setup
-   python3.12 -m venv venv
+   python3 -m venv venv
    source venv/bin/activate
    pip install -e .[dev]
    ```

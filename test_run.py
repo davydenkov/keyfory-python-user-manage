@@ -11,6 +11,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Python 3.12+ features check
+if sys.version_info < (3, 12):
+    print(
+        f"❌ Python 3.12+ is required. Current version: {sys.version_info.major}.{sys.version_info.minor}",
+        file=sys.stderr
+    )
+    sys.exit(1)
+
 
 def run_command(cmd: list, description: str) -> int:
     """Run a command and return the exit code."""
@@ -160,7 +168,7 @@ Examples:
     elif args.middleware:
         cmd.extend(["-m", "middleware"])
     elif args.models:
-        cmd.extend(["-m", "models"])
+        cmd.extend(["tests/test_models.py"])
     elif args.mock:
         cmd.extend(["-m", "mock"])
     else:

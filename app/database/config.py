@@ -6,7 +6,26 @@ with async support. It provides session management and dependency injection
 for database operations throughout the application.
 """
 
-from advanced_alchemy import SQLAlchemyAsyncConfig, AsyncEngine
+# Try to import from advanced_alchemy with fallback options
+try:
+    from advanced_alchemy import SQLAlchemyAsyncConfig, AsyncEngine
+except ImportError:
+    try:
+        # Try alternative import paths
+        from advanced_alchemy.config import SQLAlchemyAsyncConfig
+        from advanced_alchemy import AsyncEngine
+    except ImportError:
+        try:
+            # Fallback to basic SQLAlchemy async setup
+            from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
+            SQLAlchemyAsyncConfig = None
+        except ImportError:
+            raise ImportError(
+                "SQLAlchemy is required. Please install it with: pip install sqlalchemy\n"
+                "For advanced features, also install: pip install advanced-alchemy\n"
+                "Or run the setup script: ./setup.sh"
+            )
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import get_settings
@@ -14,17 +33,27 @@ from app.config import get_settings
 # Load application settings
 settings = get_settings()
 
-# Database configuration using Advanced SQLAlchemy
-# This provides connection pooling, transaction management, and async support
-db_config = SQLAlchemyAsyncConfig(
-    connection_string=settings.database_url,
-    # Enable SQL query logging in debug mode for development
-    echo=settings.debug,
-)
-
-# Create async database engine
-# The engine manages connection pooling and provides the foundation for database operations
-engine: AsyncEngine = db_config.get_engine()
+# Database configuration
+if SQLAlchemyAsyncConfig is not None:
+    # Using Advanced SQLAlchemy for enhanced features
+    # This provides connection pooling, transaction management, and async support
+    db_config = SQLAlchemyAsyncConfig(
+        connection_string=settings.database_url,
+        # Enable SQL query logging in debug mode for development
+        echo=settings.debug,
+    )
+    # Create async database engine
+    engine: AsyncEngine = db_config.get_engine()
+else:
+    # Fallback to basic SQLAlchemy async engine
+    from sqlalchemy.ext.asyncio import create_async_engine
+    engine = create_async_engine(
+        settings.database_url,
+        echo=settings.debug,
+        # Basic connection pool settings
+        pool_size=10,
+        max_overflow=20,
+    )
 
 # Create async session factory
 # Sessions are created per request and automatically handle transactions

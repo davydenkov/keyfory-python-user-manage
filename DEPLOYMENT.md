@@ -35,7 +35,7 @@ Create production environment file:
 ```bash
 # .env.production
 # Database Configuration
-DATABASE_URL=postgresql+asyncpg://user:secure_password@postgres:5432/user_management
+DATABASE_URL=postgresql+asyncpg://user_manager:secure_password@postgres:5432/user_management
 
 # RabbitMQ Configuration
 RABBITMQ_URL=amqp://user:secure_password@rabbitmq:5672/
@@ -83,7 +83,7 @@ services:
       context: .
       dockerfile: Dockerfile.prod
     environment:
-      - DATABASE_URL=postgresql+asyncpg://user:password@postgres:5432/user_management
+      - DATABASE_URL=postgresql+asyncpg://user_manager:password@postgres:5432/user_management
       - RABBITMQ_URL=amqp://user:password@rabbitmq:5672/
     env_file:
       - .env.production
@@ -311,7 +311,7 @@ spec:
         image: your-registry/user-management-api:latest
         env:
         - name: DATABASE_URL
-          value: "postgresql+asyncpg://user:$(DATABASE_PASSWORD)@postgres:5432/user_management"
+          value: "postgresql+asyncpg://user_manager:$(DATABASE_PASSWORD)@postgres:5432/user_management"
         - name: RABBITMQ_URL
           value: "amqp://user:$(RABBITMQ_PASSWORD)@rabbitmq:5672/"
         envFrom:
@@ -700,7 +700,7 @@ DATE=$(date +%Y%m%d_%H%M%S)
 BACKUP_FILE="$BACKUP_DIR/user_management_$DATE.sql"
 
 # Create backup
-docker exec postgres pg_dump -U user user_management > "$BACKUP_FILE"
+docker exec postgres pg_dump -U user_manager user_management > "$BACKUP_FILE"
 
 # Compress
 gzip "$BACKUP_FILE"
@@ -714,7 +714,7 @@ find "$BACKUP_DIR" -name "*.sql.gz" -mtime +7 -delete
 ```bash
 # Restore from backup
 gunzip backup_file.sql.gz
-docker exec -i postgres psql -U user user_management < backup_file.sql
+docker exec -i postgres psql -U user_manager user_management < backup_file.sql
 ```
 
 ## Scaling Considerations
@@ -778,7 +778,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 1. **Database Connection Issues**
    ```bash
    # Check database connectivity
-   docker exec postgres pg_isready -U user -d user_management
+   docker exec postgres pg_isready -U user_manager -d user_management
    ```
 
 2. **RabbitMQ Connection Issues**
@@ -803,7 +803,7 @@ docker-compose logs -f api
 docker stats
 
 # Database performance
-docker exec postgres psql -U user -d user_management -c "SELECT * FROM pg_stat_activity;"
+docker exec postgres psql -U user_manager -d user_management -c "SELECT * FROM pg_stat_activity;"
 
 # RabbitMQ management
 open http://localhost:15672
@@ -832,7 +832,7 @@ open http://localhost:15672
 
    # Restore database
    gunzip backup.sql.gz
-   docker exec -i postgres psql -U user user_management < backup.sql
+   docker exec -i postgres psql -U user_manager user_management < backup.sql
 
    # Restart application
    docker-compose start api
