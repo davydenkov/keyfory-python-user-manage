@@ -2,7 +2,8 @@
 
 REST API for user management built with LiteStar, PostgreSQL, and RabbitMQ.
 
-## Features
+
+### Features
 
 - ✅ Full CRUD operations for users
 - ✅ Swagger/OpenAPI documentation
