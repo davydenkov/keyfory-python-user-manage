@@ -86,7 +86,7 @@ async def lifespan(app: Litestar):
 
     # Initialize database: Create all tables defined in SQLAlchemy models
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(lambda sync_conn: Base.metadata.create_all(bind=sync_conn))
 
     # Initialize message queue consumer for user events
     await start_consumer()
