@@ -18,7 +18,7 @@ This guide covers deploying the User Management API to production environments. 
 
 ```bash
 # Clone repository
-git clone <repository-url>
+git clone <git@github.com:davydenkov/keyfory-python-user-manage.git>
 cd keyfory-python-user-manage
 
 # Start infrastructure services
