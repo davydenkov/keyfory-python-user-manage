@@ -275,21 +275,60 @@ CREATE INDEX idx_user_created_at ON "user"(created_at);
 
 ### Running Tests
 
-The test suite covers all API endpoints, error handling, and trace_id functionality:
+The project includes comprehensive test suites with multiple test categories:
+
+#### Quick Test Commands
+
+```bash
+# Run all tests (excluding slow performance tests)
+python test_run.py
+
+# Run specific test categories
+python test_run.py --api          # API endpoint tests
+python test_run.py --unit         # Unit tests
+python test_run.py --integration  # Integration tests
+python test_run.py --validation   # Input validation tests
+python test_run.py --middleware   # Middleware tests
+python test_run.py --models       # Database model tests
+
+# Run performance tests (slow)
+python test_run.py --performance
+
+# Run with coverage report
+python test_run.py --coverage
+
+# Run all tests including slow ones
+python test_run.py --no-slow
+```
+
+#### Manual Pytest Commands
 
 ```bash
 # Run all tests
-python -m pytest tests/
-
-# Run with verbose output
-python -m pytest tests/ -v
-
-# Run specific test
-python -m pytest tests/test_user_api.py::test_create_user -v
+pytest
 
 # Run with coverage
-python -m pytest tests/ --cov=app --cov-report=html
+pytest --cov=app --cov-report=html
+
+# Run specific test file
+pytest tests/test_user_api.py -v
+
+# Run tests with specific marker
+pytest -m "api"
+
+# Run tests and stop on first failure
+pytest --tb=short
 ```
+
+#### Test Categories
+
+- **Unit Tests**: Individual component testing
+- **API Tests**: REST endpoint functionality
+- **Integration Tests**: Component interaction testing
+- **Validation Tests**: Input validation and error handling
+- **Middleware Tests**: Logging and request processing
+- **Model Tests**: Database model and schema testing
+- **Performance Tests**: Response time and load testing
 
 **Test Coverage:**
 - ✅ User CRUD operations
@@ -298,6 +337,9 @@ python -m pytest tests/ --cov=app --cov-report=html
 - ✅ Trace ID header validation
 - ✅ HTTP status codes
 - ✅ Data integrity
+- ✅ Database constraints
+- ✅ Concurrent operations
+- ✅ Performance benchmarks
 
 ### Database Management
 

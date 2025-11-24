@@ -12,10 +12,20 @@ import pytest
 from litestar.testing import TestClient
 
 from app.main import app
+from tests.utils import (
+    assert_user_response_structure,
+    assert_pagination_response_structure,
+    assert_trace_id_present,
+    create_test_user_data,
+    HTTP_OK,
+    HTTP_CREATED,
+    HTTP_BAD_REQUEST,
+    HTTP_NOT_FOUND
+)
 
 
 @pytest.mark.asyncio
-async def test_create_user():
+async def test_create_user(test_client: TestClient):
     """
     Test successful user creation with valid data.
 
@@ -25,26 +35,26 @@ async def test_create_user():
     - Response data matches input data
     - Proper HTTP status code is returned
     """
-    async with TestClient(app) as client:
-        user_data = {
-            "name": "John",
-            "surname": "Doe",
-            "password": "securepassword"
-        }
+    user_data = create_test_user_data("John", "Doe", "securepassword")
 
-        response = await client.post("/users/", json=user_data)
+    response = await test_client.post("/users/", json=user_data)
 
-        assert response.status_code == 201
-        data = response.json()
-        assert data["name"] == "John"
-        assert data["surname"] == "Doe"
-        assert "id" in data  # Auto-generated ID
-        assert "created_at" in data  # Auto-generated timestamp
-        assert "updated_at" in data  # Auto-generated timestamp
+    assert response.status_code == HTTP_CREATED
+    data = response.json()
+
+    # Verify response structure
+    assert_user_response_structure(data)
+
+    # Verify data matches input
+    assert data["name"] == "John"
+    assert data["surname"] == "Doe"
+
+    # Verify trace_id is present
+    assert_trace_id_present(response)
 
 
 @pytest.mark.asyncio
-async def test_get_users():
+async def test_get_users(test_client: TestClient):
     """
     Test retrieving paginated list of users.
 
@@ -53,15 +63,16 @@ async def test_get_users():
     - Response includes metadata (total, page, per_page)
     - Empty list is handled correctly
     """
-    async with TestClient(app) as client:
-        response = await client.get("/users/")
+    response = await test_client.get("/users/")
 
-        assert response.status_code == 200
-        data = response.json()
-        assert "users" in data  # List of user objects
-        assert "total" in data  # Total count for pagination
-        assert "page" in data  # Current page number
-        assert "per_page" in data  # Items per page
+    assert response.status_code == HTTP_OK
+    data = response.json()
+
+    # Verify pagination response structure
+    assert_pagination_response_structure(data)
+
+    # Verify trace_id is present
+    assert_trace_id_present(response)
 
 
 @pytest.mark.asyncio
@@ -209,7 +220,7 @@ async def test_delete_nonexistent_user():
 
 
 @pytest.mark.asyncio
-async def test_trace_id_header():
+async def test_trace_id_header(test_client: TestClient):
     """
     Test that trace_id functionality works correctly.
 
@@ -218,14 +229,8 @@ async def test_trace_id_header():
     - Header contains a valid trace identifier
     - Middleware is functioning correctly
     """
-    async with TestClient(app) as client:
-        response = await client.get("/users/")
+    response = await test_client.get("/users/")
 
-        # Verify trace_id header is present
-        assert "X-Trace-Id" in response.headers
-        trace_id = response.headers["X-Trace-Id"]
-        assert len(trace_id) > 0  # Should contain a valid trace ID
-
-        # Verify it's a properly formatted UUID
-        # This is a basic check - in production you might validate UUID format
-        assert isinstance(trace_id, str)
+    # Use utility function to verify trace_id
+    trace_id = assert_trace_id_present(response)
+    assert isinstance(trace_id, str)

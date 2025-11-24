@@ -138,36 +138,8 @@ force_grid_wrap = 0
 use_parentheses = true
 ensure_newline_before_comments = true
 
-# pytest Configuration
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = ["test_*.py", "*_test.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-addopts = [
-    "--strict-markers",
-    "--strict-config",
-    "--verbose",
-    "--tb=short",
-    "--asyncio-mode=auto",
-]
-
-# Coverage Configuration
-[tool.coverage.run]
-source = ["app"]
-omit = [
-    "*/tests/*",
-    "*/venv/*",
-    "*/__pycache__/*",
-]
-
-[tool.coverage.report]
-exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "raise AssertionError",
-    "raise NotImplementedError",
-]
+# pytest Configuration is in pytest.ini
+# Coverage Configuration is in pytest.ini
 
 # ========================================================================
 # PRODUCTION DEPLOYMENT NOTES
